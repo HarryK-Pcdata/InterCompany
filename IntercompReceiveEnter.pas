@@ -170,6 +170,7 @@ type
     lSystemWaveFilter : TList;
     lSystemStreetFilter : TList;
     UseSystemFilters : boolean;
+    FCreatingStack: Boolean;
 
     maContainer: TSNodeContainer;
 
@@ -2733,6 +2734,9 @@ procedure TfInterCompReceiveEnter.Execute_EnterKey;
 var
   transaction: TTransno;
 begin
+  if FCreatingStack then
+    Exit;
+
   // If we are using a Dockmanager scanner, check the flag in the SHIPMENT table
   // to find out if we are allowed to close
   if GlobalIntercompanyOptions.DockManagerScanning then
@@ -3670,29 +3674,36 @@ procedure TfInterCompReceiveEnter.aCreateStackExecute(Sender: TObject);
 var
   index: integer;
 begin
-  inherited;
-  if (ReadOnly) then
-  begin
-    if not disableInboundScanMessages then
-      ShowMessage('Can''t create stacks on a read-only screen');
+  if FCreatingStack then
     Exit;
+  FCreatingStack := True;
+  try
+    inherited;
+    if (ReadOnly) then
+    begin
+      if not disableInboundScanMessages then
+        ShowMessage('Can''t create stacks on a read-only screen');
+      Exit;
+    end;
+
+    if not OneAndOnlyOneWave and (HighestWaveNumber>1) then
+    begin
+      ShowMessage(vGlobalStrings.GetString(GLOBSTR_MSG_MUST_SELECT_WAVE){ 'You must select one wave (wave-filter)'});
+      exit;
+    end;
+
+    index := DrawGrid1.Row;
+
+    Container.enableIMPrint := actEnableIMPrint.Checked;
+    ICController.CreateStack((DrawGrid1.Row - 1), ScreenNumber);
+
+    DrawGrid1.RowCount := Container.Nodes.Count + 1;
+    DrawGrid1.Row := index;
+    lastRowIndex := index;
+    DrawGrid1.Refresh;
+  finally
+    FCreatingStack := False;
   end;
-
-  if not OneAndOnlyOneWave and (HighestWaveNumber>1) then
-  begin
-    ShowMessage(vGlobalStrings.GetString(GLOBSTR_MSG_MUST_SELECT_WAVE){ 'You must select one wave (wave-filter)'});
-    exit;
-  end;
-
-  index := DrawGrid1.Row;
-
-  Container.enableIMPrint := actEnableIMPrint.Checked;
-  ICController.CreateStack((DrawGrid1.Row - 1), ScreenNumber);
-
-  DrawGrid1.RowCount := Container.Nodes.Count + 1;
-  DrawGrid1.Row := index;
-  lastRowIndex := index;
-  DrawGrid1.Refresh;
 end;
 
 procedure TfInterCompReceiveEnter.actEnableIMPrintExecute(Sender: TObject);
